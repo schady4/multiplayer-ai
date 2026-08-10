@@ -1,34 +1,101 @@
 # Multiplayer AI — Proof of Context
 
-A working proof-of-context for **multiplayer AI**: a shared, forkable, live
-collaborative surface where multiple humans and an AI agent think together in
-the same context — and where divergent lines of thought can branch and merge
-back into a unified truth.
+### What if AI collaboration worked like Git + Google Docs?
+
+A proof-of-concept architecture for shared AI context where multiple humans and
+an AI agent can work simultaneously, branch their reasoning, and reconcile
+divergent conclusions — without forcing every edit through an LLM.
+
+CRDTs handle concurrent collaboration. DAG commits preserve provenance and
+branching. AI is invoked only when branches contain genuine semantic conflicts.
+
+[Architecture](#architecture-at-a-glance) · [What's in here](#whats-in-here) · [Run locally](#running-it)
 
 Built by **Jarett Schadlich**.
 
 ---
 
-## The idea
+## Architecture at a glance
 
-Most AI today is single-player: one user, one model, one private chat window.
-When you want to collaborate, the best you can usually do is pass around a
-read-only transcript nobody else can steer.
+```
+                 ┌─────────────────────┐
+                 │   Shared Surface    │
+                 │       (CRDT)        │
+                 └──────────┬──────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              ▼              ▼              ▼
+           Human A        Human B          Claude
+              │              │              │
+              └──────────────┼──────────────┘
+                             │
+                        snapshot
+                             │
+                             ▼
+                     ┌───────────────┐
+                     │   DAG Ledger  │
+                     │  (content-    │
+                     │   addressed)  │
+                     └───────┬───────┘
+                             │
+                   ┌─────────┴─────────┐
+                   ▼                   ▼
+               Branch A             Branch B
+                   │                   │
+                   └─────────┬─────────┘
+                              ▼
+                     three-way merge
+                              │
+                      semantic conflict?
+                        /            \
+                      no              yes
+                       │               │
+                    merge         AI arbitration
+                (free, no          (single
+                 inference)       inference call)
+```
 
-The more valuable version looks less like a solo chat and more like a live
-Google Doc or a Figma canvas — a shared workspace anyone can drop into, watch
-the agent work, redirect it, and hand off. That raises a hard question: how do
-you let several people (and an agent) work in the *same* context at once, let
-their thinking diverge when it needs to, and then reconcile it back into one
-coherent shared state — without either dropping anyone's work or forcing every
-edit through an expensive negotiation?
-
-This repo answers that with a **two-layer architecture**, and demonstrates each
-layer in a runnable POC.
+Live collaboration converges for free (CRDT). Reasoning history branches and
+merges mechanically (DAG). AI is paid for only at genuine semantic collisions.
 
 ---
 
-## The architecture
+## The problem
+
+Today's AI conversations are fundamentally single-player. One person owns the
+context; everyone else gets a read-only transcript, not shared working state.
+
+Multiplayer AI needs:
+
+- multiple humans working simultaneously
+- an AI agent contributing to the same context
+- divergent lines of reasoning that can branch
+- persistent provenance
+- deterministic reconciliation where possible
+- AI arbitration only where deterministic reconciliation fails
+
+This POC explores one architecture for that.
+
+## The core idea
+
+Don't make the LLM resolve every conflict — use the right mechanism for each
+class of change:
+
+| Problem | Mechanism |
+|---|---|
+| Concurrent edits | CRDT |
+| Shared live state | CRDT |
+| Branching | DAG |
+| Provenance | Content-addressed commits |
+| Mechanical merge | Three-way merge |
+| Semantic conflict | AI arbitration |
+
+This repository is intentionally small — the goal is to demonstrate the
+architectural invariant before introducing production infrastructure.
+
+---
+
+## The architecture, in depth
 
 The core insight: real-time collaboration and version-control semantics pull
 toward *different* data structures, and you need both.
