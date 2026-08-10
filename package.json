@@ -1,0 +1,13 @@
+{
+  "name": "multiplayer-ai",
+  "version": "0.1.0",
+  "description": "Proof of context for multiplayer AI: a two-layer CRDT + DAG architecture for shared, forkable, live collaborative thinking with an AI agent.",
+  "author": "Jarett Schadlich",
+  "license": "CC-BY-4.0",
+  "keywords": ["multiplayer-ai", "crdt", "dag", "collaboration", "agents", "proof-of-concept"],
+  "type": "module",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
