@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { callClaude } from "./lib/anthropic.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Multiplayer AI — Fork / Merge Proof of Context
@@ -15,8 +16,6 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 // own backend are runBranchTurn() and mergeConflict(). Everything else is infra
 // that's already a solved problem to scale.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const MODEL = "claude-sonnet-4-6";
 
 // ── palette / type: "cold-storage terminal" — steel, oxide, phosphor ─────────
 const C = {
@@ -108,13 +107,7 @@ async function runBranchTurn(branchState, history, userInput) {
     ...history.map((h) => ({ role: h.role, content: h.content })),
     { role: "user", content: userInput },
   ];
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, max_tokens: 400, system: sys, messages }),
-  });
-  const data = await res.json();
-  const text = data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  const text = await callClaude({ system: sys, messages, maxTokens: 400 });
   return safeJson(text, { say: text.slice(0, 160), edit: null });
 }
 
@@ -131,18 +124,7 @@ async function mergeConflict(ancestor, branchA, branchB, conflicts) {
     `Branch A:\n${JSON.stringify(branchA)}\n\n` +
     `Branch B:\n${JSON.stringify(branchB)}\n\n` +
     `Conflicted keys:\n${JSON.stringify(conflicts.map((c) => c.key))}`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 500,
-      system: sys,
-      messages: [{ role: "user", content }],
-    }),
-  });
-  const data = await res.json();
-  const text = data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+  const text = await callClaude({ system: sys, messages: [{ role: "user", content }], maxTokens: 500 });
   return safeJson(text, {
     resolved: Object.fromEntries(conflicts.map((c) => [c.key, c.b])),
     rationale: "fallback: took branch B on parse failure",
@@ -255,7 +237,8 @@ export default function App() {
         setHeads((h) => ({ ...h, [seat]: n.id }));
       }
     } catch (e) {
-      setChat((c) => [...c, { role: "assistant", content: "(call failed — check network)", who: "claude" }]);
+      const msg = e.message === "NO_API_KEY" ? "(add your Anthropic API key above to enable Claude)" : "(call failed — check network)";
+      setChat((c) => [...c, { role: "assistant", content: msg, who: "claude" }]);
     } finally {
       setBusy(null);
     }
@@ -304,7 +287,7 @@ export default function App() {
       setMergeReport({ clean: false, conflicts, resolved: res.resolved, rationale: res.rationale, finalState });
       flash(`Semantic merge — 1 Claude call for ${conflicts.length} collision(s)`);
     } catch (e) {
-      flash("merge call failed");
+      flash(e.message === "NO_API_KEY" ? "Add your Anthropic API key above first" : "merge call failed");
     } finally {
       setBusy(null);
     }

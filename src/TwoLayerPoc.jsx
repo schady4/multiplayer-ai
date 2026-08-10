@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { callClaude } from "./lib/anthropic.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTIPLAYER AI · Two-Layer Proof of Context
@@ -18,8 +19,6 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 // The point being proven: cheap convergence for the many live edits (CRDT),
 // expensive reconciliation only for the rare semantic collisions (DAG+model).
 // ─────────────────────────────────────────────────────────────────────────────
-
-const MODEL = "claude-sonnet-4-6";
 
 const C = {
   bg: "#0C0F14", panel: "#141922", panelHi: "#1A212B", line: "#242C38",
@@ -172,18 +171,15 @@ export default function App() {
         `"""${crdtText(docRef.current)}"""\n\n` +
         "Add a brief, useful contribution (one or two sentences) that continues the " +
         "shared thought. Reply with ONLY the text to append — no preamble, no quotes.";
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 200, system: sys,
-          messages: [{ role: "user", content: prompt || "Continue the thought." }] }),
-      });
-      const data = await res.json();
-      const out = data.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+      const out = (await callClaude({
+        system: sys,
+        messages: [{ role: "user", content: prompt || "Continue the thought." }],
+        maxTokens: 200,
+      })).trim();
       const prefix = crdtText(docRef.current).length && !crdtText(docRef.current).endsWith(" ") ? " " : "";
       typeString("claude", prefix + out);
-    } catch {
-      flash("Claude call failed — check network");
+    } catch (err) {
+      flash(err.message === "NO_API_KEY" ? "Add your Anthropic API key above first" : "Claude call failed — check network");
     } finally {
       setBusy(false);
     }
@@ -217,14 +213,7 @@ export default function App() {
       const content =
         `Shared base:\n${base}\n\nBranch A concluded: ${branchA.conclusion}\n` +
         `Branch B concluded: ${branchB.conclusion}`;
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: MODEL, max_tokens: 300, system: sys,
-          messages: [{ role: "user", content }] }),
-      });
-      const data = await res.json();
-      const raw = data.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+      const raw = await callClaude({ system: sys, messages: [{ role: "user", content }], maxTokens: 300 });
       let parsed;
       try { parsed = JSON.parse(raw.replace(/```json|```/g, "").trim()); }
       catch { const m = raw.match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : { resolved: raw.slice(0, 120), rationale: "parse fallback" }; }
@@ -237,8 +226,8 @@ export default function App() {
       setCommits((c) => [...c, mergeNode]);
       setMergeReport({ branchA, branchB, resolved: parsed.resolved, rationale: parsed.rationale });
       flash("Semantic merge resolved — this is the rare, paid-for path");
-    } catch {
-      flash("merge call failed");
+    } catch (err) {
+      flash(err.message === "NO_API_KEY" ? "Add your Anthropic API key above first" : "merge call failed");
     } finally {
       setBusy(false);
     }

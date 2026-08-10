@@ -9,7 +9,7 @@ divergent conclusions — without forcing every edit through an LLM.
 CRDTs handle concurrent collaboration. DAG commits preserve provenance and
 branching. AI is invoked only when branches contain genuine semantic conflicts.
 
-[Architecture](#architecture-at-a-glance) · [What's in here](#whats-in-here) · [Run locally](#running-it)
+**[▶ Try the live demo](https://schady4.github.io/multiplayer-ai/)** · [Architecture](#architecture-at-a-glance) · [What's in here](#whats-in-here) · [Run locally](#running-it)
 
 Built by **Jarett Schadlich**.
 
@@ -138,31 +138,42 @@ in opposite directions, which is why multiplayer AI needs both at once.
 |------|----------------------|
 | `src/TwoLayerPoc.jsx` | **The full system.** A live CRDT surface where two seats + Claude type concurrently and converge with zero merge calls (dial up simulated network delay to watch out-of-order ops still converge), sitting on a DAG commit ledger where only real semantic collisions cost an inference call. |
 | `src/DagMergePoc.jsx` | **The DAG layer in isolation.** Fork a shared context into two branches, advance each (directly or via Claude), then merge — clean merges reconcile mechanically, collisions escalate to one Claude call with a rationale. |
+| `src/lib/anthropic.js` | The one place either component talks to Claude — a thin BYOK client for the [live demo](https://schady4.github.io/multiplayer-ai/). |
 
-Both are single-file React components.
+The two POCs are single-file React components; `App.jsx` just tab-switches between them for the live demo.
 
 ---
 
 ## Running it
 
-These components were built to run as Claude.ai Artifacts, and call the
-Anthropic API through the in-artifact endpoint (no API key needed there). To
-run them in your own environment, drop either component into a React app
-(Vite + React works well) and point the two integration seams at your backend:
+The [live demo](https://schady4.github.io/multiplayer-ai/) is a static Vite +
+React build deployed to GitHub Pages via GitHub Actions on every push to
+`main`. GitHub Pages can't hold a server-side secret, so the AI seat uses a
+**bring-your-own-key** model: you paste your own Anthropic API key into the
+banner at the top of the page, it's kept in that tab's `sessionStorage` only
+(never persisted, never sent anywhere but directly to Anthropic's API), and
+it's gone the moment you close the tab. Without a key, everything except the
+Claude seat still works — CRDT typing, forking, and mechanical merges are pure
+client-side logic that costs nothing.
+
+To run it locally:
+
+```bash
+git clone https://github.com/schady4/multiplayer-ai
+cd multiplayer-ai
+npm install
+npm run dev
+```
+
+The two integration seams, if you want to point them at your own backend
+instead of calling Anthropic directly from the browser:
 
 - `runBranchTurn()` / `claudeType()` — advance a branch / write to the surface
 - `mergeConflict()` / `branchAndMerge()` — reconcile a semantic collision
 
-In your own app you supply the model call (e.g. an Anthropic API request from a
-server route that holds your key). Never ship an API key in client code.
-
-```bash
-npm create vite@latest multiplayer-ai -- --template react
-cd multiplayer-ai
-npm install
-# copy src/TwoLayerPoc.jsx into src/, import it in App.jsx
-npm run dev
-```
+Both go through `src/lib/anthropic.js`. Swap `callClaude()` for a fetch to
+your own server route once you'd rather hold the key server-side than rely on
+BYOK.
 
 ---
 
@@ -185,6 +196,11 @@ Known simplifications:
   open research surface.
 - CRDT deletes are tombstoned but interior editing/cursors aren't fully wired,
   since append-convergence is what proves the property.
+- The live demo's BYOK model means your API key is used directly from the
+  browser (with Anthropic's `anthropic-dangerous-direct-browser-access`
+  header) rather than proxied through a server. That's the right tradeoff for
+  a static demo with no backend, but a production app should hold the key
+  server-side instead.
 
 ---
 
