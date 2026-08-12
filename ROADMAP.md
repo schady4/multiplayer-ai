@@ -11,6 +11,29 @@ session from their own terminals, and AI participants sit in that session as
 first-class members — using tools, looping, delegating across models, and
 spinning up new instances on request.
 
+## Where this lives
+
+This work ships as its **own repository and npm package**, separate from this
+one. The split:
+
+- **This repo** (`multiplayer-ai`) — stays the live web demo + the architecture
+  reference (the CRDT/DAG proof of context). The plan of record lives here.
+- **The CLI repo** (new) — the Node/TypeScript command-line tool, published to
+  **npm** so it installs in one step (`npx` / global install). On first run it
+  prompts for credentials per provider the user wants to wire up.
+
+The CLI repo ports the CRDT/DAG core out of this one (M0) rather than depending
+on the React build.
+
+## Multi-model, by design
+
+The router (M3) is the extensibility surface. Every model is a **provider
+adapter** behind one interface, so the tool is model-agnostic and open: Claude,
+OpenAI, Meta/Llama, Kimi, and local / open-source models all plug in the same
+way. Install prompts collect only the credentials for the providers a user
+actually enables; adding a new provider is adding an adapter, not touching the
+core.
+
 ---
 
 ## The reframing
@@ -87,11 +110,13 @@ One AI seat joins the room as a replica via the Agent SDK. It reads the stream
 and replies. MCP tool use behind a permission prompt rendered in the TUI. Loop
 so it can keep contributing without being re-prompted each turn.
 
-### M3 — The router
+### M3 — The router + provider adapters
 Multi-model / multi-provider selection per request. `route(task) →
-{provider, model}`. Delegation primitive: an agent asks the router to spin up a
-new instance on a chosen model to own a subtask, and that instance joins the
-room as its own participant.
+{provider, model}`, where each provider (Claude, OpenAI, Meta/Llama, Kimi,
+local / open-source) is an **adapter behind one interface** — adding a model is
+adding an adapter, never touching the core. Delegation primitive: an agent asks
+the router to spin up a new instance on a chosen model to own a subtask, and
+that instance joins the room as its own participant.
 
 ### M4 — DAG threads in chat
 Branch a thread inside the session, advance branches independently (human or
@@ -99,9 +124,10 @@ AI), merge — mechanical where possible, one arbitration call where a genuine
 semantic collision exists. This is the web POC's payoff, now inside live chat.
 
 ### M5 — Package & distribute
-`npx multiplayer-ai` / global install. Room invite/handle flow, self-host vs.
-shared relay, config for keys and MCP servers. Downloadable and installable —
-the stated end state.
+Published to **npm** for one-step install (`npx` / global install). First-run
+setup prompts for credentials per enabled provider and stores them locally.
+Room invite/handle flow, self-host vs. shared relay, config for keys and MCP
+servers. Downloadable and installable — the stated end state.
 
 ---
 
